@@ -2,3 +2,5 @@ ucimlrepo
 fastapi[standard]
 sqlalchemy
 psycopg2-binary
+joblib
+scikit-learn
