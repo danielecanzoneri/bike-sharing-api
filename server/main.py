@@ -1,13 +1,14 @@
 import io
 import os
 from enum import Enum
+import uuid
 import pandas as pd
 from typing import Annotated
 
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI, Response, UploadFile, HTTPException
 from sqlalchemy import create_engine, text
 
-from model import load_model, save_model
+from model import load_model, save_model, preprocess_dataset
 from model import train as model_train
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -28,20 +29,23 @@ app = FastAPI()
 engine = create_engine(DATABASE_URL, echo=True)
 
 
-@app.post("/load")
-def load_dataset(file: UploadFile):
-    """Load a dataset from a CSV file and store it in the database."""
-
+def parse_csv(file):
     # Check that file is a CSV
     if file.content_type != 'text/csv':
         raise HTTPException(status_code=415, detail="Only CSV files are allowed.")
     
     contents = file.file.read()
     try:
-        df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
+        return pd.read_csv(io.StringIO(contents.decode("utf-8")))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error reading the file: {e}")
+
+@app.post("/load")
+def load_dataset(file: UploadFile):
+    """Load a dataset from a CSV file and store it in the database."""
     
+    df = parse_csv(file)
+
     # Store the DataFrame in the database
     try:
         df.to_sql('bike_sharing', con=engine, if_exists='replace', index=False)
@@ -61,7 +65,8 @@ def train_model():
     try:
         global model  # Use the global model variable to store the trained model
 
-        X, y = model_train.preprocess_dataset(df)
+        X = preprocess_dataset(df)
+        y = df["cnt"].copy()
         model = model_train.train(X, y)
 
         # Save the trained model to a file
@@ -136,3 +141,43 @@ def total_users():
         total_users = {month_map[row[0]]: row[1] for row in total_result}
 
     return total_users
+
+
+predictions = {}
+
+@app.post("/predict")
+def predict(file: UploadFile):
+    """Predict the number of users given a CSV file with the same columns as the dataset."""
+
+    if not model:
+        raise HTTPException(status_code=400, detail="Model not trained yet.")
+    
+    df = parse_csv(file)
+
+    # Predict the number of users
+    try:
+        X = preprocess_dataset(df)
+        y = model.predict(X.values)
+        print(predictions)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during prediction: {e}")
+    
+    # Add the predictions to the DataFrame
+    df["cnt"] = y
+
+    # Generate an id for the prediction and store it in the predictions dictionary
+    prediction_id = str(uuid.uuid4())
+    predictions[prediction_id] = df
+
+    # Return the prediction id
+    return {"prediction_id": prediction_id}
+
+
+@app.get("/predict/{prediction_id}")
+def get_prediction(prediction_id: str):
+    """Get the prediction for a given prediction id."""
+
+    if prediction_id not in predictions:
+        raise HTTPException(status_code=404, detail="Prediction not found.")
+
+    return Response(content=predictions[prediction_id].to_csv(index=False), media_type="text/csv")
