@@ -1,10 +1,11 @@
 import io
 import os
+from enum import Enum
 import pandas as pd
 from typing import Annotated
 
 from fastapi import FastAPI, UploadFile, HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from model import load_model, save_model
 from model import train as model_train
@@ -69,3 +70,45 @@ def train_model():
         raise HTTPException(status_code=500, detail=f"Error during training: {e}")
     
     return {"message": "Model trained successfully"}
+
+
+class AvgStatsType(str, Enum):
+    hr = "hour"
+    weekday = "day"
+
+@app.get("/stats/avg")
+def average(type: AvgStatsType = AvgStatsType.hr):
+    """Get aggregated statistics (average users for each hour/day)"""
+
+    # Validate column exists in the table
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'bike_sharing' AND column_name = :col
+            """),
+            {"col": type.name}
+        )
+        if not result.fetchone():
+            raise HTTPException(status_code=400, detail=f"Dataset does not contain '{type.name}' column.")
+
+        # Compute average using SQL
+        avg_query = text(f"""
+            SELECT {type.name}, AVG(cnt) as avg_users
+            FROM bike_sharing
+            GROUP BY {type.name}
+            ORDER BY {type.name}
+        """)
+        avg_result = conn.execute(avg_query)
+        avg_users = {row[0]: round(row[1], 4) for row in avg_result}
+
+    if type == AvgStatsType.weekday:
+        # Convert the weekday number to a string representation
+        weekday_map = {
+            0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
+            4: 'Thursday', 5: 'Friday', 6: 'Saturday',
+        }
+        avg_users = {weekday_map[k]: v for k, v in avg_users.items()}
+
+    return avg_users
