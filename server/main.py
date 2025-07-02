@@ -49,6 +49,8 @@ def load_dataset(file: UploadFile):
         df.to_sql('bike_sharing', con=engine, if_exists='replace', index=False)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error storing the data in the database: {e}")
+    
+    return {"message": "Dataset loaded successfully."}
 
 
 @app.get("/train")
@@ -72,7 +74,7 @@ def train_model():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error during training: {e}")
     
-    return {"message": "Model trained successfully"}
+    return {"message": "Model trained successfully."}
 
 
 class AvgStatsType(str, Enum):
