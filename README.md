@@ -24,7 +24,7 @@ API per la gestione e l'analisi di un servizio di bike sharing. Permette di cari
 
 3. **Avvia i servizi**
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
    L'API sarà disponibile su [http://localhost:8000](http://localhost:8000).
 
