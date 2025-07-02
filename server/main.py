@@ -112,3 +112,27 @@ def average(type: AvgStatsType = AvgStatsType.hr):
         avg_users = {weekday_map[k]: v for k, v in avg_users.items()}
 
     return avg_users
+
+
+@app.get("/stats/total")
+def total_users():
+    """Get total number of users for each month."""
+
+    with engine.connect() as conn:
+        # Compute total using SQL
+        total_query = text("""
+            SELECT mnth, SUM(cnt) as total_users
+            FROM bike_sharing
+            GROUP BY mnth
+            ORDER BY mnth
+        """)
+        total_result = conn.execute(total_query)
+
+        # Convert the month number to a string representation
+        month_map = {
+            1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June',
+            7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December',
+        }
+        total_users = {month_map[row[0]]: row[1] for row in total_result}
+
+    return total_users
