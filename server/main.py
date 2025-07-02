@@ -15,9 +15,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable not set")
 
-MODEL_PATH = os.environ.get("MODEL_PATH")
-if not MODEL_PATH:
-    raise RuntimeError("MODEL_PATH environment variable not set")
+MODEL_PATH = "/model-data/model.pkl"
 
 # Load the model if it exists
 try:
